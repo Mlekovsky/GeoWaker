@@ -1,0 +1,21 @@
+{
+  "name": "WakePoint – Location Alarm",
+  "short_name": "WakePoint",
+  "description": "Alarm lokalizacyjny – obudź się dokładnie tam, gdzie potrzebujesz",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0f1e",
+  "theme_color": "#0a0f1e",
+  "lang": "pl",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='40' fill='%230a0f1e'/%3E%3Cpath d='M96 40a48 48 0 100 96 48 48 0 000-96zm0 56a8 8 0 110-16 8 8 0 010 16z' fill='%2338bdf8'/%3E%3Cpath d='M96 136l-8 16h16l-8-16z' fill='%2338bdf8'/%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["utilities", "productivity"],
+  "screenshots": []
+}

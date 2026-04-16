@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0f1e" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="WakePoint" />
+  <title>WakePoint – Location Alarm</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <!-- Leaflet for real map rendering -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    :root {
+      --bg:        #0a0f1e;
+      --bg2:       #111827;
+      --surface:   #1a2236;
+      --surface2:  #232f47;
+      --border:    rgba(255,255,255,0.08);
+      --accent:    #38bdf8;
+      --accent2:   #0ea5e9;
+      --green:     #22d3a5;
+      --red:       #f43f5e;
+      --amber:     #fbbf24;
+      --text:      #e2e8f0;
+      --text2:     #94a3b8;
+      --text3:     #475569;
+      --radius-card: 20px;
+      --radius-btn:  14px;
+      --safe-top:    env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; -webkit-tap-highlight-color: transparent; }
+
+    /* ─── LAYOUT ────────────────────────────────── */
+    #app { display: flex; flex-direction: column; height: 100%; }
+
+    /* ─── SCREENS ───────────────────────────────── */
+    .screen { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+    .screen.active { display: flex; }
+
+    /* ─── SCROLLABLE CONTENT ────────────────────── */
+    .scroll-area { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    .scroll-area::-webkit-scrollbar { display: none; }
+
+    /* ─── HEADER ────────────────────────────────── */
+    .app-header {
+      padding: calc(var(--safe-top) + 48px) 20px 20px;
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+    }
+    .app-header .row { display: flex; justify-content: space-between; align-items: flex-end; }
+    .app-header h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+    .app-header .subtitle { font-size: 13px; color: var(--text2); margin-top: 2px; }
+
+    /* ─── BOTTOM NAV ────────────────────────────── */
+    #bottom-nav {
+      display: flex;
+      background: var(--bg2);
+      border-top: 1px solid var(--border);
+      padding: 8px 0 calc(var(--safe-bottom) + 8px);
+    }
+    .nav-item {
+      flex: 1; display: flex; flex-direction: column; align-items: center;
+      gap: 4px; padding: 6px 0; cursor: pointer;
+      color: var(--text3); font-size: 10px; font-weight: 600;
+      letter-spacing: 0.5px; text-transform: uppercase;
+      transition: color 0.2s; border: none; background: none;
+    }
+    .nav-item svg { width: 22px; height: 22px; }
+    .nav-item.active { color: var(--accent); }
+    .nav-item .nav-dot {
+      width: 4px; height: 4px; border-radius: 50%;
+      background: var(--accent); margin-top: 2px;
+      opacity: 0; transition: opacity 0.2s;
+    }
+    .nav-item.active .nav-dot { opacity: 1; }
+
+    /* ─── BUTTONS ───────────────────────────────── */
+    .btn-primary {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; padding: 16px;
+      background: var(--accent); color: #0a0f1e;
+      font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 700;
+      border: none; border-radius: var(--radius-btn); cursor: pointer;
+      transition: transform 0.15s, opacity 0.15s;
+    }
+    .btn-primary:active { transform: scale(0.97); opacity: 0.9; }
+    .btn-primary.danger { background: var(--red); color: white; }
+    .btn-secondary {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; padding: 14px;
+      background: transparent; color: var(--text);
+      font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 600;
+      border: 1.5px solid var(--border); border-radius: var(--radius-btn); cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-secondary:active { background: var(--surface); }
+    .btn-fab {
+      width: 48px; height: 48px; border-radius: 14px;
+      background: var(--accent); color: #0a0f1e;
+      border: none; cursor: pointer; display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 20px rgba(56,189,248,0.35);
+      transition: transform 0.15s;
+    }
+    .btn-fab:active { transform: scale(0.93); }
+    .btn-icon {
+      width: 44px; height: 44px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--text2); transition: background 0.15s;
+    }
+    .btn-icon:active { background: var(--surface2); }
+
+    /* ─── CARDS ─────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-card);
+      padding: 16px;
+    }
+    .card + .card { margin-top: 12px; }
+
+    /* ─── TOGGLE ────────────────────────────────── */
+    .toggle { position: relative; display: inline-block; width: 50px; height: 28px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-track {
+      position: absolute; inset: 0; border-radius: 14px;
+      background: var(--surface2); border: 1px solid var(--border);
+      transition: background 0.25s, border-color 0.25s; cursor: pointer;
+    }
+    .toggle-thumb {
+      position: absolute; left: 3px; top: 3px;
+      width: 20px; height: 20px; border-radius: 50%;
+      background: var(--text2); transition: transform 0.25s, background 0.25s;
+      pointer-events: none;
+    }
+    .toggle input:checked + .toggle-track { background: var(--green); border-color: var(--green); }
+    .toggle input:checked + .toggle-track + .toggle-thumb { transform: translateX(22px); background: white; }
+
+    /* ─── SLIDER ────────────────────────────────── */
+    .range-wrap { position: relative; }
+    input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; cursor: pointer; }
+    input[type=range]::-webkit-slider-runnable-track {
+      height: 4px; border-radius: 2px; background: var(--surface2);
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none; margin-top: -8px;
+      width: 20px; height: 20px; border-radius: 50%;
+      background: var(--accent); box-shadow: 0 0 0 3px rgba(56,189,248,0.2);
+    }
+    input[type=range]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--surface2); }
+    input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: var(--accent); border: none; }
+
+    /* ─── SECTION LABEL ──────────────────────────── */
+    .section-label {
+      font-size: 11px; font-weight: 600; letter-spacing: 1px;
+      text-transform: uppercase; color: var(--text3);
+      padding: 0 4px; margin-bottom: 10px; margin-top: 20px;
+    }
+    .section-label:first-child { margin-top: 0; }
+
+    /* ─── INPUT ──────────────────────────────────── */
+    .field-input {
+      width: 100%; background: transparent; border: none; outline: none;
+      color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 500;
+    }
+    .field-input::placeholder { color: var(--text3); }
+
+    /* ─── ROW ────────────────────────────────────── */
+    .row { display: flex; align-items: center; gap: 12px; }
+    .row-between { display: flex; align-items: center; justify-content: space-between; }
+
+    /* ─── ICON BOX ───────────────────────────────── */
+    .icon-box {
+      width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .icon-box svg { width: 20px; height: 20px; }
+
+    /* ═══════════════════════════════════════════════
+       SCREEN 1 — ALARMS LIST
+    ═══════════════════════════════════════════════ */
+    #screen-alarms .scroll-area { padding: 16px 16px 20px; }
+
+    .alarm-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-card); padding: 16px;
+      margin-bottom: 10px; display: flex; align-items: center;
+      gap: 14px; cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .alarm-card.disabled { opacity: 0.5; }
+    .alarm-card:active { background: var(--surface2); }
+
+    .alarm-card .alarm-info { flex: 1; min-width: 0; }
+    .alarm-card .alarm-name {
+      font-size: 15px; font-weight: 600; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis;
+    }
+    .alarm-card .alarm-meta {
+      font-size: 12px; color: var(--text2); margin-top: 2px;
+    }
+    .alarm-card .alarm-dist {
+      font-family: 'Space Mono', monospace; font-size: 11px;
+      color: var(--accent); background: rgba(56,189,248,0.1);
+      padding: 2px 8px; border-radius: 20px; margin-top: 4px;
+      display: inline-block;
+    }
+    .alarm-card.active-alarm {
+      border-color: rgba(56,189,248,0.3);
+      box-shadow: 0 0 0 1px rgba(56,189,248,0.1);
+    }
+
+    .empty-state {
+      text-align: center; padding: 60px 20px;
+      color: var(--text3);
+    }
+    .empty-state svg { width: 56px; height: 56px; margin: 0 auto 16px; opacity: 0.4; }
+    .empty-state p { font-size: 15px; }
+
+    /* ═══════════════════════════════════════════════
+       SCREEN 2 — MAP
+    ═══════════════════════════════════════════════ */
+    #screen-map { position: relative; }
+    #map-container { flex: 1; position: relative; z-index: 0; }
+    #leaflet-map { width: 100%; height: 100%; }
+
+    /* Fix Leaflet z-index issues inside our app */
+    .leaflet-control-zoom { display: none; }
+
+    #map-search-bar {
+      position: absolute; top: calc(var(--safe-top) + 12px); left: 12px; right: 12px;
+      z-index: 1000; display: flex; gap: 8px;
+    }
+    .search-input-wrap {
+      flex: 1; background: var(--bg2)/90; backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border); border-radius: 14px;
+      padding: 0 14px; display: flex; align-items: center; gap: 10px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+      background: rgba(17,24,39,0.95);
+    }
+    .search-input-wrap svg { width: 18px; height: 18px; color: var(--text3); flex-shrink: 0; }
+    #map-search-input {
+      flex: 1; background: transparent; border: none; outline: none;
+      color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 14px;
+      padding: 13px 0;
+    }
+    #map-search-input::placeholder { color: var(--text3); }
+
+    #search-results {
+      position: absolute; top: calc(100% + 8px); left: 0; right: 0;
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 14px; overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      display: none; z-index: 2000;
+    }
+    #search-results.open { display: block; }
+    .search-result-item {
+      padding: 12px 16px; cursor: pointer;
+      border-bottom: 1px solid var(--border);
+      transition: background 0.1s;
+      font-size: 13px;
+    }
+    .search-result-item:last-child { border-bottom: none; }
+    .search-result-item:active { background: var(--surface2); }
+    .search-result-item strong { display: block; font-weight: 600; color: var(--text); }
+    .search-result-item span { color: var(--text2); font-size: 11px; }
+
+    #map-controls {
+      position: absolute; right: 12px; bottom: 200px; z-index: 1000;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+
+    #map-bottom-panel {
+      position: absolute; bottom: 0; left: 0; right: 0; z-index: 1000;
+      padding: 16px 16px calc(var(--safe-bottom) + 16px);
+      background: linear-gradient(to top, rgba(10,15,30,0.98) 80%, transparent);
+    }
+    .radius-panel {
+      background: rgba(17,24,39,0.95); backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border); border-radius: 16px;
+      padding: 14px 16px; margin-bottom: 12px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .radius-panel label { font-size: 11px; font-weight: 700; letter-spacing: 0.8px; color: var(--text3); text-transform: uppercase; white-space: nowrap; }
+    #radius-display { font-family: 'Space Mono', monospace; font-size: 13px; color: var(--accent); white-space: nowrap; min-width: 44px; text-align: right; }
+
+    /* selected location badge */
+    #selected-loc-badge {
+      display: none; align-items: center; gap: 10px;
+      background: rgba(17,24,39,0.95); border: 1px solid var(--border);
+      border-radius: 14px; padding: 10px 14px; margin-bottom: 10px;
+    }
+    #selected-loc-badge.show { display: flex; }
+    #selected-loc-badge .loc-name { font-weight: 600; font-size: 13px; }
+    #selected-loc-badge .loc-addr { font-size: 11px; color: var(--text2); }
+
+    /* ═══════════════════════════════════════════════
+       SCREEN 3 — SETUP
+    ═══════════════════════════════════════════════ */
+    #screen-setup .setup-header {
+      padding: calc(var(--safe-top) + 12px) 16px 16px;
+      display: flex; align-items: center; gap: 12px;
+      background: var(--bg2); border-bottom: 1px solid var(--border);
+    }
+    #screen-setup .setup-title { font-size: 17px; font-weight: 700; flex: 1; text-align: center; }
+
+    #screen-setup .scroll-area { padding: 16px 16px 100px; }
+
+    .settings-group {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-card); overflow: hidden;
+    }
+    .settings-row {
+      display: flex; align-items: center; gap: 12px; padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .settings-row:last-child { border-bottom: none; }
+    .settings-row-label { flex: 1; font-size: 14px; font-weight: 500; }
+    .settings-row-value { font-size: 13px; color: var(--text2); }
+
+    .setup-footer {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      padding: 16px 16px calc(var(--safe-bottom) + 16px);
+      background: linear-gradient(to top, var(--bg) 70%, transparent);
+      pointer-events: none;
+    }
+    .setup-footer .btn-primary { pointer-events: all; }
+
+    /* ═══════════════════════════════════════════════
+       SCREEN 4 — ALARM FIRING
+    ═══════════════════════════════════════════════ */
+    #screen-alarm {
+      background: #0f0a14;
+      padding: calc(var(--safe-top) + 20px) 24px calc(var(--safe-bottom) + 24px);
+      align-items: center; justify-content: space-between;
+    }
+
+    .alarm-pulse-ring {
+      position: relative; display: flex; align-items: center; justify-content: center;
+      width: 160px; height: 160px;
+    }
+    .alarm-pulse-ring::before,
+    .alarm-pulse-ring::after {
+      content: ''; position: absolute; border-radius: 50%;
+      border: 2px solid var(--red);
+      animation: alarm-expand 2s ease-out infinite;
+    }
+    .alarm-pulse-ring::after { animation-delay: 0.8s; }
+    @keyframes alarm-expand {
+      0% { width: 60px; height: 60px; opacity: 0.8; }
+      100% { width: 160px; height: 160px; opacity: 0; }
+    }
+    .alarm-icon-center {
+      width: 80px; height: 80px; border-radius: 50%;
+      background: rgba(244,63,94,0.15); border: 2px solid rgba(244,63,94,0.4);
+      display: flex; align-items: center; justify-content: center; z-index: 1;
+    }
+    .alarm-icon-center svg { width: 40px; height: 40px; color: var(--red); }
+
+    @keyframes alarm-shake {
+      0%,100% { transform: translateX(0); }
+      10%,50%,90% { transform: translateX(-4px); }
+      30%,70% { transform: translateX(4px); }
+    }
+    .alarm-title-wrap { text-align: center; }
+    .alarm-headline {
+      font-size: 42px; font-weight: 800; letter-spacing: -1px; line-height: 1;
+      animation: alarm-shake 0.5s ease-in-out infinite;
+      animation-play-state: paused;
+    }
+    .alarm-headline.shaking { animation-play-state: running; }
+    .alarm-subtitle { font-size: 15px; color: var(--text2); margin-top: 8px; }
+
+    .alarm-info-card {
+      background: var(--surface); border: 1px solid rgba(244,63,94,0.2);
+      border-radius: 20px; padding: 24px; text-align: center; width: 100%;
+    }
+    .alarm-zone-label { font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--text3); margin-bottom: 6px; }
+    .alarm-zone-name { font-size: 24px; font-weight: 700; }
+    .alarm-zone-addr { font-size: 13px; color: var(--text2); margin-top: 4px; }
+
+    .alarm-actions { width: 100%; display: flex; flex-direction: column; gap: 10px; }
+
+    /* ─── ANIMATIONS ──────────────────────────── */
+    @keyframes fade-up {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .fade-up { animation: fade-up 0.3s ease forwards; }
+
+    /* ─── STATUS BAR INDICATOR ──────────────────── */
+    #status-bar {
+      position: fixed; bottom: calc(var(--safe-bottom) + 64px); left: 50%;
+      transform: translateX(-50%); z-index: 9999;
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 40px; padding: 8px 16px;
+      font-size: 12px; font-weight: 600; color: var(--text2);
+      display: flex; align-items: center; gap: 6px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+      opacity: 0; transition: opacity 0.3s; pointer-events: none;
+      white-space: nowrap;
+    }
+    #status-bar.show { opacity: 1; }
+    #status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text3); flex-shrink: 0; }
+    #status-dot.tracking { background: var(--green); animation: blink 1.5s infinite; }
+    @keyframes blink { 50% { opacity: 0.3; } }
+
+    /* ─── PERMISSION SCREEN ─────────────────────── */
+    #screen-permission {
+      background: var(--bg); align-items: center; justify-content: center;
+      padding: 32px 24px;
+    }
+    .perm-icon { width: 80px; height: 80px; border-radius: 24px; background: var(--surface); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; margin-bottom: 24px; }
+    .perm-icon svg { width: 40px; height: 40px; color: var(--accent); }
+    #screen-permission h2 { font-size: 24px; font-weight: 700; text-align: center; margin-bottom: 10px; }
+    #screen-permission p { font-size: 14px; color: var(--text2); text-align: center; line-height: 1.6; margin-bottom: 32px; }
+
+    /* ─── GEOFENCE CIRCLE on MAP ──────────────────── */
+    .leaflet-geofence-circle { stroke: #38bdf8; fill: rgba(56,189,248,0.12); stroke-width: 2; }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ══════════════ PERMISSION SCREEN ══════════════ -->
+  <div class="screen active" id="screen-permission">
+    <div class="perm-icon">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+    </div>
+    <h2>WakePoint</h2>
+    <p>Zbudź się dokładnie tam, gdzie potrzebujesz. WakePoint wymaga dostępu do Twojej lokalizacji, aby monitorować odległość od wybranych punktów.</p>
+    <button class="btn-primary" id="btn-grant-perm" style="max-width:300px">
+      <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
+      Zezwól na lokalizację
+    </button>
+  </div>
+
+  <!-- ══════════════ MAIN: ALARMS LIST ══════════════ -->
+  <div class="screen" id="screen-alarms">
+    <div class="app-header">
+      <div class="row">
+        <div>
+          <h1>WakePoint</h1>
+          <p class="subtitle" id="alarms-subtitle">Brak aktywnych alarmów</p>
+        </div>
+        <button class="btn-fab" id="btn-add-alarm" title="Dodaj alarm">
+          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="scroll-area" id="alarm-list-container">
+      <!-- dynamically filled -->
+    </div>
+  </div>
+
+  <!-- ══════════════ MAP VIEW ══════════════════════ -->
+  <div class="screen" id="screen-map">
+    <div id="map-container">
+      <div id="leaflet-map"></div>
+
+      <!-- Search bar -->
+      <div id="map-search-bar">
+        <div class="search-input-wrap" style="position:relative">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          <input id="map-search-input" placeholder="Szukaj miejsca…" type="text" autocomplete="off" />
+          <div id="search-results"></div>
+        </div>
+        <button class="btn-icon" id="btn-my-location" title="Moja lokalizacja">
+          <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8a4 4 0 100 8 4 4 0 000-8z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zM4 12a8 8 0 1116 0 8 8 0 01-16 0z"/></svg>
+        </button>
+      </div>
+
+      <!-- Bottom panel -->
+      <div id="map-bottom-panel">
+        <div id="selected-loc-badge">
+          <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--accent);flex-shrink:0"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
+          <div style="flex:1;min-width:0">
+            <div class="loc-name" id="badge-name">—</div>
+            <div class="loc-addr" id="badge-addr"></div>
+          </div>
+        </div>
+        <div class="radius-panel">
+          <label>Promień</label>
+          <input type="range" id="map-radius-slider" min="100" max="5000" step="50" value="500" style="flex:1" />
+          <span id="radius-display">500m</span>
+        </div>
+        <button class="btn-primary" id="btn-set-alarm">
+          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+          Ustaw alarm w tym miejscu
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════ SETUP SCREEN ══════════════════ -->
+  <div class="screen" id="screen-setup">
+    <div class="setup-header">
+      <button class="btn-icon" id="btn-setup-back">
+        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
+      </button>
+      <span class="setup-title">Konfiguracja alarmu</span>
+      <div style="width:44px"></div>
+    </div>
+
+    <div class="scroll-area">
+      <!-- Location card -->
+      <p class="section-label">Lokalizacja</p>
+      <div class="card row">
+        <div class="icon-box" style="background:rgba(56,189,248,0.1)">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--accent)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:14px" id="setup-loc-name">—</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px" id="setup-loc-addr"></div>
+        </div>
+      </div>
+
+      <!-- Name -->
+      <p class="section-label">Nazwa alarmu</p>
+      <div class="card">
+        <input class="field-input" id="alarm-name-input" type="text" placeholder="np. Wysiadaj na tej stacji" maxlength="50" />
+      </div>
+
+      <!-- Radius -->
+      <p class="section-label">Promień alertu</p>
+      <div class="card">
+        <div class="row-between" style="margin-bottom:14px">
+          <span style="font-size:13px;color:var(--text2)">Odległość wyzwolenia</span>
+          <span style="font-family:'Space Mono',monospace;font-size:18px;font-weight:700;color:var(--accent)" id="setup-radius-val">500m</span>
+        </div>
+        <input type="range" id="setup-radius-slider" min="100" max="5000" step="50" value="500" />
+        <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:11px;font-weight:600;color:var(--text3)">
+          <span>100m</span><span>5km</span>
+        </div>
+      </div>
+
+      <!-- Settings -->
+      <p class="section-label">Ustawienia</p>
+      <div class="settings-group">
+        <div class="settings-row">
+          <div class="icon-box" style="background:rgba(251,191,36,0.1)">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--amber)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+          </div>
+          <span class="settings-row-label">Tylko wibracje</span>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-vibrate" />
+            <div class="toggle-track"></div>
+            <div class="toggle-thumb"></div>
+          </label>
+        </div>
+        <div class="settings-row">
+          <div class="icon-box" style="background:rgba(34,211,165,0.1)">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--green)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+          </div>
+          <div style="flex:1">
+            <span class="settings-row-label">Dźwięk alarmu</span>
+            <div style="font-size:11px;color:var(--text2)">Systemowy sygnał alarmowy</div>
+          </div>
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--text3)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        </div>
+        <div class="settings-row">
+          <div class="icon-box" style="background:rgba(148,163,184,0.1)">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--text2)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+          </div>
+          <span class="settings-row-label">Jednorazowy alarm</span>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-once" checked />
+            <div class="toggle-track"></div>
+            <div class="toggle-thumb"></div>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="setup-footer">
+      <button class="btn-primary" id="btn-save-alarm">
+        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+        Zapisz alarm
+      </button>
+    </div>
+  </div>
+
+  <!-- ══════════════ ALARM FIRING ══════════════════ -->
+  <div class="screen" id="screen-alarm">
+    <div class="alarm-pulse-ring">
+      <div class="alarm-icon-center">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      </div>
+    </div>
+    <div class="alarm-title-wrap">
+      <div class="alarm-headline shaking">OBUDŹ SIĘ!</div>
+      <div class="alarm-subtitle">Dotarłeś do celu podróży</div>
+    </div>
+    <div class="alarm-info-card">
+      <div class="alarm-zone-label">Aktywna strefa</div>
+      <div class="alarm-zone-name" id="firing-alarm-name">—</div>
+      <div class="alarm-zone-addr" id="firing-alarm-addr"></div>
+    </div>
+    <div class="alarm-actions">
+      <button class="btn-primary danger" id="btn-dismiss-alarm">
+        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+        Wyłącz alarm
+      </button>
+      <button class="btn-secondary" id="btn-snooze-alarm">
+        ⏱ Drzemka (5 min)
+      </button>
+    </div>
+  </div>
+
+  <!-- ══════════════ BOTTOM NAV ══════════════════ -->
+  <nav id="bottom-nav" style="display:none">
+    <button class="nav-item active" data-screen="alarms">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+      <span>Alarmy</span>
+      <div class="nav-dot"></div>
+    </button>
+    <button class="nav-item" data-screen="map">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+      <span>Mapa</span>
+      <div class="nav-dot"></div>
+    </button>
+    <button class="nav-item" data-screen="settings-info">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      <span>Info</span>
+      <div class="nav-dot"></div>
+    </button>
+  </nav>
+
+  <!-- Status indicator -->
+  <div id="status-bar">
+    <div id="status-dot"></div>
+    <span id="status-text">Brak śledzenia</span>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  WakePoint — Main Application Logic
+// ═══════════════════════════════════════════════════════
+
+const App = (() => {
+  // ── State ──────────────────────────────────────────
+  let alarms = [];
+  let currentScreen = 'permission';
+  let map = null;
+  let geofenceCircle = null;
+  let userMarker = null;
+  let selectedLocation = null; // { lat, lng, name, address }
+  let pendingAlarm = null;     // alarm being configured
+  let watchId = null;
+  let audioCtx = null;
+  let alarmInterval = null;
+  let editingAlarmId = null;
+  let snoozeUntil = null;
+
+  const STORAGE_KEY = 'wakepoint_alarms_v2';
+
+  // ── Persistence ─────────────────────────────────────
+  function saveAlarms() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(alarms)); } catch(e) {}
+  }
+  function loadAlarms() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) alarms = JSON.parse(raw);
+    } catch(e) { alarms = []; }
+  }
+
+  // ── Helpers ──────────────────────────────────────────
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+  function fmtRadius(m) { return m >= 1000 ? (m/1000).toFixed(1)+'km' : m+'m'; }
+  function haversine(lat1, lon1, lat2, lon2) {
+    const R = 6371000;
+    const dLat = (lat2-lat1)*Math.PI/180;
+    const dLon = (lon2-lon1)*Math.PI/180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  }
+
+  // ── Screen navigation ────────────────────────────────
+  function showScreen(name) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    const screenMap = { alarms: 'screen-alarms', map: 'screen-map', setup: 'screen-setup', alarm: 'screen-alarm', permission: 'screen-permission' };
+    const el = document.getElementById(screenMap[name] || name);
+    if (el) el.classList.add('active');
+    currentScreen = name;
+
+    const nav = document.getElementById('bottom-nav');
+    const showNav = ['alarms','map'].includes(name);
+    nav.style.display = showNav ? 'flex' : 'none';
+
+    // Update nav active state
+    document.querySelectorAll('.nav-item').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.screen === name);
+    });
+
+    // Init map when first shown
+    if (name === 'map' && !map) initMap();
+    if (name === 'map' && map) setTimeout(() => map.invalidateSize(), 100);
+  }
+
+  // ── Alarm List Rendering ─────────────────────────────
+  function renderAlarms() {
+    const container = document.getElementById('alarm-list-container');
+    const subtitle = document.getElementById('alarms-subtitle');
+    const active = alarms.filter(a => a.enabled).length;
+    subtitle.textContent = active > 0 ? `${active} aktywn${active===1?'y':'e'} alarm${active===1?'':'y'}` : 'Brak aktywnych alarmów';
+
+    if (alarms.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state fade-up">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+          <p>Brak alarmów.<br/>Dotknij <strong>+</strong> aby dodać nowy.</p>
+        </div>`;
+      return;
+    }
+    container.innerHTML = alarms.map(a => `
+      <div class="alarm-card ${a.enabled ? 'active-alarm' : 'disabled'} fade-up" data-id="${a.id}">
+        <div class="icon-box" style="background:${a.enabled ? 'rgba(56,189,248,0.1)' : 'rgba(148,163,184,0.1)'}">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:${a.enabled ? 'var(--accent)' : 'var(--text3)'}">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+        </div>
+        <div class="alarm-info">
+          <div class="alarm-name">${escHtml(a.name)}</div>
+          <div class="alarm-meta">${escHtml(a.location.name)} · ${fmtRadius(a.radius)}</div>
+          ${a.enabled ? `<div class="alarm-dist" id="dist-${a.id}">Obliczanie…</div>` : ''}
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
+          <label class="toggle" onclick="event.stopPropagation()">
+            <input type="checkbox" ${a.enabled ? 'checked' : ''} onchange="App.toggleAlarm('${a.id}',this.checked)" />
+            <div class="toggle-track"></div>
+            <div class="toggle-thumb"></div>
+          </label>
+          <button onclick="event.stopPropagation();App.deleteAlarm('${a.id}')" style="background:none;border:none;cursor:pointer;color:var(--text3);padding:4px" title="Usuń">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          </button>
+        </div>
+      </div>`).join('');
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── Toggle / Delete alarms ───────────────────────────
+  window.App = {
+    toggleAlarm(id, enabled) {
+      const a = alarms.find(x => x.id === id);
+      if (a) { a.enabled = enabled; saveAlarms(); renderAlarms(); updateStatusBar(); }
+    },
+    deleteAlarm(id) {
+      alarms = alarms.filter(x => x.id !== id);
+      saveAlarms(); renderAlarms(); updateStatusBar();
+    }
+  };
+
+  // ── MAP ──────────────────────────────────────────────
+  function initMap() {
+    map = L.map('leaflet-map', {
+      center: [52.2297, 21.0122], zoom: 13,
+      zoomControl: false, attributionControl: false
+    });
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19, subdomains: 'abcd'
+    }).addTo(map);
+    L.control.attribution({ prefix: false, position: 'bottomleft' }).addTo(map);
+
+    // Show user position if available
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(pos => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        map.setView([lat, lng], 15);
+        if (userMarker) userMarker.remove();
+        userMarker = L.circleMarker([lat, lng], {
+          radius: 8, fillColor: '#38bdf8', fillOpacity: 1,
+          color: 'white', weight: 2
+        }).addTo(map);
+      }, () => {});
+    }
+
+    // Click on map = select location
+    map.on('click', async (e) => {
+      const { lat, lng } = e.latlng;
+      await reverseGeocode(lat, lng);
+    });
+
+    // Draw existing alarm geofences
+    alarms.forEach(a => {
+      if (a.enabled) {
+        L.circle([a.location.lat, a.location.lng], {
+          radius: a.radius, className: 'leaflet-geofence-circle', interactive: false
+        }).addTo(map);
+      }
+    });
+  }
+
+  async function reverseGeocode(lat, lng) {
+    try {
+      const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`;
+      const res = await fetch(url, { headers: { 'Accept-Language': 'pl' } });
+      const data = await res.json();
+      const name = data.name || data.display_name?.split(',')[0] || 'Wybrane miejsce';
+      const address = data.display_name || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+      setSelectedLocation({ lat, lng, name, address });
+    } catch(e) {
+      setSelectedLocation({ lat, lng, name: 'Wybrane miejsce', address: `${lat.toFixed(4)}, ${lng.toFixed(4)}` });
+    }
+  }
+
+  function setSelectedLocation(loc) {
+    selectedLocation = loc;
+    if (geofenceCircle) geofenceCircle.remove();
+    const radius = parseInt(document.getElementById('map-radius-slider').value);
+    geofenceCircle = L.circle([loc.lat, loc.lng], {
+      radius, className: 'leaflet-geofence-circle'
+    }).addTo(map);
+    map.setView([loc.lat, loc.lng], 15);
+    document.getElementById('badge-name').textContent = loc.name;
+    document.getElementById('badge-addr').textContent = loc.address;
+    document.getElementById('selected-loc-badge').classList.add('show');
+  }
+
+  // ── Search (Nominatim) ───────────────────────────────
+  let searchTimeout;
+  document.getElementById('map-search-input').addEventListener('input', (e) => {
+    clearTimeout(searchTimeout);
+    const q = e.target.value.trim();
+    if (q.length < 3) { closeSearchResults(); return; }
+    searchTimeout = setTimeout(() => doSearch(q), 400);
+  });
+
+  async function doSearch(q) {
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&addressdetails=1`;
+      const res = await fetch(url, { headers: { 'Accept-Language': 'pl' } });
+      const data = await res.json();
+      showSearchResults(data);
+    } catch(e) {}
+  }
+
+  function showSearchResults(results) {
+    const box = document.getElementById('search-results');
+    if (!results.length) { box.innerHTML = '<div class="search-result-item"><span>Brak wyników</span></div>'; box.classList.add('open'); return; }
+    box.innerHTML = results.map(r => {
+      const name = r.name || r.display_name.split(',')[0];
+      const addr = r.display_name;
+      return `<div class="search-result-item" data-lat="${r.lat}" data-lon="${r.lon}" data-name="${escHtml(name)}" data-addr="${escHtml(addr)}">
+        <strong>${escHtml(name)}</strong><span>${escHtml(addr)}</span>
+      </div>`;
+    }).join('');
+    box.classList.add('open');
+    box.querySelectorAll('.search-result-item').forEach(item => {
+      item.addEventListener('click', () => {
+        setSelectedLocation({ lat: parseFloat(item.dataset.lat), lng: parseFloat(item.dataset.lon), name: item.dataset.name, address: item.dataset.addr });
+        document.getElementById('map-search-input').value = item.dataset.name;
+        closeSearchResults();
+      });
+    });
+  }
+
+  function closeSearchResults() {
+    document.getElementById('search-results').classList.remove('open');
+  }
+
+  // ── Map radius slider ────────────────────────────────
+  document.getElementById('map-radius-slider').addEventListener('input', (e) => {
+    const val = parseInt(e.target.value);
+    document.getElementById('radius-display').textContent = fmtRadius(val);
+    if (geofenceCircle) geofenceCircle.setRadius(val);
+  });
+
+  // ── My location button ───────────────────────────────
+  document.getElementById('btn-my-location').addEventListener('click', () => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(pos => {
+      const { latitude: lat, longitude: lng } = pos.coords;
+      if (map) map.setView([lat, lng], 15);
+    });
+  });
+
+  // ── Set Alarm from map ───────────────────────────────
+  document.getElementById('btn-set-alarm').addEventListener('click', () => {
+    if (!selectedLocation) { showToast('Wybierz najpierw lokalizację na mapie'); return; }
+    pendingAlarm = {
+      location: selectedLocation,
+      radius: parseInt(document.getElementById('map-radius-slider').value)
+    };
+    openSetupScreen(null);
+  });
+
+  // ── Setup Screen ─────────────────────────────────────
+  function openSetupScreen(alarmId) {
+    editingAlarmId = alarmId;
+    let loc, radius;
+    if (alarmId) {
+      const a = alarms.find(x => x.id === alarmId);
+      if (!a) return;
+      document.getElementById('alarm-name-input').value = a.name;
+      document.getElementById('setup-radius-slider').value = a.radius;
+      document.getElementById('setup-radius-val').textContent = fmtRadius(a.radius);
+      document.getElementById('toggle-vibrate').checked = a.vibrateOnly;
+      document.getElementById('toggle-once').checked = a.once;
+      loc = a.location; radius = a.radius;
+    } else if (pendingAlarm) {
+      document.getElementById('alarm-name-input').value = '';
+      document.getElementById('setup-radius-slider').value = pendingAlarm.radius;
+      document.getElementById('setup-radius-val').textContent = fmtRadius(pendingAlarm.radius);
+      document.getElementById('toggle-vibrate').checked = false;
+      document.getElementById('toggle-once').checked = true;
+      loc = pendingAlarm.location; radius = pendingAlarm.radius;
+    }
+    if (loc) {
+      document.getElementById('setup-loc-name').textContent = loc.name;
+      document.getElementById('setup-loc-addr').textContent = loc.address;
+    }
+    showScreen('setup');
+  }
+
+  document.getElementById('setup-radius-slider').addEventListener('input', (e) => {
+    document.getElementById('setup-radius-val').textContent = fmtRadius(parseInt(e.target.value));
+  });
+
+  document.getElementById('btn-setup-back').addEventListener('click', () => showScreen('map'));
+
+  document.getElementById('btn-save-alarm').addEventListener('click', () => {
+    const name = document.getElementById('alarm-name-input').value.trim() || 'Alarm lokalizacyjny';
+    const radius = parseInt(document.getElementById('setup-radius-slider').value);
+    const vibrateOnly = document.getElementById('toggle-vibrate').checked;
+    const once = document.getElementById('toggle-once').checked;
+    const location = editingAlarmId ? alarms.find(x => x.id === editingAlarmId).location : pendingAlarm.location;
+
+    if (editingAlarmId) {
+      const a = alarms.find(x => x.id === editingAlarmId);
+      Object.assign(a, { name, radius, vibrateOnly, once });
+    } else {
+      alarms.push({ id: uid(), name, location, radius, vibrateOnly, once, enabled: true, triggered: false });
+    }
+    saveAlarms(); renderAlarms();
+    showScreen('alarms');
+    showToast('Alarm zapisany ✓');
+  });
+
+  // ── Add alarm (FAB) ──────────────────────────────────
+  document.getElementById('btn-add-alarm').addEventListener('click', () => showScreen('map'));
+
+  // ── Nav ──────────────────────────────────────────────
+  document.querySelectorAll('.nav-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const s = btn.dataset.screen;
+      if (s === 'settings-info') { showInfoModal(); return; }
+      showScreen(s);
+    });
+  });
+
+  // ── Permission screen ────────────────────────────────
+  document.getElementById('btn-grant-perm').addEventListener('click', () => {
+    requestLocation();
+  });
+
+  function requestLocation() {
+    if (!navigator.geolocation) {
+      showToast('Geolokalizacja nie jest wspierana');
+      proceedToApp(); return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => { proceedToApp(); startWatching(); },
+      (err) => {
+        if (err.code === 1) showToast('Odmówiono dostępu do lokalizacji');
+        else proceedToApp();
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }
+
+  function proceedToApp() {
+    loadAlarms(); renderAlarms();
+    showScreen('alarms');
+    document.getElementById('bottom-nav').style.display = 'flex';
+    startWatching();
+  }
+
+  // ── Location Watching ────────────────────────────────
+  function startWatching() {
+    if (!navigator.geolocation) return;
+    if (watchId !== null) return;
+    watchId = navigator.geolocation.watchPosition(
+      onPosition,
+      (e) => { updateStatusBar(false); },
+      { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 }
+    );
+  }
+
+  function onPosition(pos) {
+    const { latitude: lat, longitude: lng } = pos.coords;
+    updateStatusBar(true);
+    updateDistances(lat, lng);
+
+    // Update user dot on map
+    if (map) {
+      if (userMarker) userMarker.setLatLng([lat, lng]);
+      else userMarker = L.circleMarker([lat, lng], { radius:8, fillColor:'#38bdf8', fillOpacity:1, color:'white', weight:2 }).addTo(map);
+    }
+
+    // Check alarms
+    if (snoozeUntil && Date.now() < snoozeUntil) return;
+    for (const alarm of alarms) {
+      if (!alarm.enabled || alarm.triggered) continue;
+      const dist = haversine(lat, lng, alarm.location.lat, alarm.location.lng);
+      if (dist <= alarm.radius) {
+        triggerAlarm(alarm);
+        break;
+      }
+    }
+  }
+
+  function updateDistances(lat, lng) {
+    alarms.filter(a => a.enabled).forEach(a => {
+      const dist = haversine(lat, lng, a.location.lat, a.location.lng);
+      const el = document.getElementById(`dist-${a.id}`);
+      if (el) el.textContent = dist < 1000 ? `${Math.round(dist)}m od celu` : `${(dist/1000).toFixed(1)}km od celu`;
+    });
+  }
+
+  // ── Status Bar ───────────────────────────────────────
+  function updateStatusBar(tracking) {
+    const bar = document.getElementById('status-bar');
+    const dot = document.getElementById('status-dot');
+    const txt = document.getElementById('status-text');
+    const active = alarms.filter(a => a.enabled).length;
+    if (active === 0) { bar.classList.remove('show'); return; }
+    bar.classList.add('show');
+    if (tracking === false) { dot.className = 'nav-dot'; txt.textContent = 'GPS niedostępny'; }
+    else { dot.className = 'nav-dot tracking'; txt.textContent = `Śledzę · ${active} alarm${active>1?'y':''}`; }
+  }
+
+  // ── Audio Alarm ──────────────────────────────────────
+  function playAlarmSound(vibrateOnly) {
+    // Vibration API
+    if ('vibrate' in navigator) {
+      navigator.vibrate([500,200,500,200,500,200,500,200,500]);
+    }
+    if (vibrateOnly) return;
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      function beep() {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+        osc.frequency.setValueAtTime(660, audioCtx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+        osc.start(audioCtx.currentTime);
+        osc.stop(audioCtx.currentTime + 0.4);
+      }
+      beep();
+      alarmInterval = setInterval(() => { beep(); if ('vibrate' in navigator) navigator.vibrate([400,100,400]); }, 1500);
+    } catch(e) {}
+  }
+
+  function stopAlarmSound() {
+    clearInterval(alarmInterval); alarmInterval = null;
+    if (audioCtx) { try { audioCtx.close(); } catch(e) {} audioCtx = null; }
+    if ('vibrate' in navigator) navigator.vibrate(0);
+  }
+
+  // ── Trigger alarm ────────────────────────────────────
+  function triggerAlarm(alarm) {
+    alarm.triggered = true;
+    if (alarm.once) alarm.enabled = false;
+    saveAlarms(); renderAlarms();
+    document.getElementById('firing-alarm-name').textContent = alarm.name;
+    document.getElementById('firing-alarm-addr').textContent = alarm.location.address || alarm.location.name;
+    showScreen('alarm');
+    playAlarmSound(alarm.vibrateOnly);
+
+    // Web Notification
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('WakePoint – Dotarłeś!', {
+        body: alarm.name + '\n' + (alarm.location.address || alarm.location.name),
+        icon: 'icon-192.png', tag: 'wakepoint-alarm', renotify: true
+      });
+    }
+  }
+
+  // ── Dismiss / Snooze ────────────────────────────────
+  document.getElementById('btn-dismiss-alarm').addEventListener('click', () => {
+    stopAlarmSound(); showScreen('alarms'); snoozeUntil = null;
+  });
+  document.getElementById('btn-snooze-alarm').addEventListener('click', () => {
+    stopAlarmSound(); snoozeUntil = Date.now() + 5 * 60 * 1000;
+    // Re-enable alarm after snooze for next check
+    alarms.forEach(a => { if (a.triggered && a.enabled === false && !a.once) { a.triggered = false; } });
+    alarms.forEach(a => { if (a.triggered) { a.triggered = false; a.enabled = true; } });
+    saveAlarms(); renderAlarms();
+    showScreen('alarms');
+    showToast('Drzemka 5 minut ⏱');
+  });
+
+  // ── Toast ────────────────────────────────────────────
+  function showToast(msg) {
+    const el = document.getElementById('status-bar');
+    const txt = document.getElementById('status-text');
+    const dot = document.getElementById('status-dot');
+    const prev = txt.textContent;
+    txt.textContent = msg; dot.className = '';
+    el.classList.add('show');
+    setTimeout(() => { txt.textContent = prev; updateStatusBar(); }, 2500);
+  }
+
+  // ── Info modal ───────────────────────────────────────
+  function showInfoModal() {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:flex-end;';
+    overlay.innerHTML = `
+      <div style="background:var(--bg2);border-radius:24px 24px 0 0;padding:24px 20px calc(var(--safe-bottom)+24px);width:100%;border-top:1px solid var(--border)">
+        <div style="width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 20px"></div>
+        <h3 style="font-size:18px;font-weight:700;margin-bottom:12px">WakePoint</h3>
+        <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:16px">
+          Aplikacja monitoruje Twoją lokalizację w tle i uruchamia alarm gdy znajdziesz się w zasięgu wybranego punktu.<br><br>
+          <strong style="color:var(--text)">Dane lokalne:</strong> Wszystkie alarmy są przechowywane wyłącznie na urządzeniu (localStorage).<br><br>
+          <strong style="color:var(--text)">Uprawnienia:</strong> Tylko lokalizacja (GPS).<br><br>
+          <strong style="color:var(--text)">Uwaga iOS:</strong> Na iPhone screen lock blokuje JS w tle — dodaj do ekranu głównego (PWA) i pozostaw ekran aktywny podczas podróży.
+        </p>
+        <button onclick="this.closest('div[style]').remove()" style="width:100%;padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:14px;color:var(--text);font-size:14px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">Zamknij</button>
+      </div>`;
+    overlay.addEventListener('click', e => { if(e.target===overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
+  }
+
+  // ── Service Worker registration ──────────────────────
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+
+  // ── Notification permission (request after first alarm saved) ──
+  function requestNotificationPerm() {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }
+
+  // ── Init ─────────────────────────────────────────────
+  return {
+    init() {
+      // Check if we already have location permission
+      if (navigator.permissions) {
+        navigator.permissions.query({ name: 'geolocation' }).then(result => {
+          if (result.state === 'granted') { proceedToApp(); }
+        });
+      }
+    },
+    toggleAlarm: window.App.toggleAlarm,
+    deleteAlarm: window.App.deleteAlarm
+  };
+})();
+
+App.init();
+</script>
+</body>
+</html>
